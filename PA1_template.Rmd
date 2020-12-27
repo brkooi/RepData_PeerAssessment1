@@ -5,7 +5,7 @@ output:
     keep_md: true
 ---
 
-## Loading and preprocessing the data
+## Setting the environment
 
 Load the needed packages.
 ```{r}
@@ -14,97 +14,155 @@ sapply(packages, require, character.only=TRUE, quietly=TRUE)
 ```
 
 Set the environment
-```{r setoptions, echo=FALSE}
+```{r setoptions, echo=TRUE}
 opts_chunk$set(echo=TRUE)
 ```
 
-Then we unzip the delivered zip-file with the measured activities.
-```{r}
+## 1. Loading and preprocessing the data
+
+For this assignement there is a dataset delivered in ZIP-format.
+It will be unzipped and load as a dataframe.
+```{r }
 unzip(zipfile = "activity.zip")
-```
-
-
-We read the activitie.csv-file and display the structure and first 6 rows of the dataframe.
-```{r}
 activities <- read.csv("activity.csv")
 ```
 
-
-## What is mean total number of steps taken per day?
-First we use dplyr-functions for compute the mean staps per day and then we use ggplot2-functions for making a barplot.
+For answering all the questions, the dataset has to be processed.
+The variable date will be changed to date-type.
 ```{r}
-
-#process the data
-
 activities$date<-as.Date(activities$date)
-activities$daytype<-as.factor(ifelse(weekdays(activities$date) %in% c("zaterdag","zondag"), "weekend","weekday"))
+```
+
+The following code is to display the results of processing the dataset.
+Now we are ready to answer the questions.
+
+```{r}
 str(activities)
 head(activities)
 summary(activities)
+```
 
+In this dataset we see a total of 2304 NA-values in the variable steps
 
+## 2. What is mean total number of steps taken per day?
+First we use dplyr-functions for compute the mean staps per day and then we use ggplot2-functions for making a histogram. For this question we create a new dataset and ignore the NA-values for the calculations and histogram to make.
+
+### create a new dataset
+```{r}
 activities2<-activities %>%
               na.omit() %>%
               select(date,steps) %>%
               group_by(date) %>%
               summarize(sumsteps=sum(steps))
-#calculate the sum, mean and median of the steps
-sum(activities2$sumsteps)
-mean(activities2$sumsteps)
-median(activities2$sumsteps)
+```
 
-#plot a histogram of the sum of the steps per day
+### 2.1 Calculate the sum of the steps
+```{r}
+sum(activities2$sumsteps)
+```
+
+### 2.2 Plot a histogram of the sum of the steps per day
+```{r}
 ggplot( activities2 , aes(x=sumsteps) )+ 
   geom_histogram(binwidth = 2000,col="black",fill="red")
+```
 
 
+### 2.3 Calculate mean and median of the steps
+```{r}
+mean(activities2$sumsteps)
+median(activities2$sumsteps)
+```
 
+## 3. What is the average daily activity pattern?
+
+### Create a new dataset
+```{r}
 activities3<-activities %>%
               na.omit() %>%
               select(interval,steps) %>%
               group_by(interval) %>%
               summarize(meansteps=mean(steps))
-#plot a histogram of the sum of the steps per day
-ggplot( activities3 , aes(x=interval, y=meansteps)) + 
-  geom_line()
 ```
 
-## What is the average daily activity pattern?
+### 3.1 Plotting a timeseries-plot of the 5 min-interval of the mean of the steps per day
+```{r}
+ggplot( activities3 , aes(x=interval, y=meansteps)) + 
+  geom_line() +
+  geom_point()
+```
+
+
+### 3.2 Calculate the 5 min-interval with the maximum mean of steps
+With the folowing code we determine the maximum mean of steps in each interval. Then we filter the row with maximum mean.
+```{r}
+activities3 %>%
+group_by(interval) %>%
+summarize(max = max(meansteps)) %>%
+filter(max == max(max))
+```
+As you can see, the maximum mean is 206 steps in interval 835.
+
+## 4. Imputing missing values
+
+### 4.1 Calculate the total of missing values
+A summary of the dataset will display the count of missing values, mean, median etc.
+```{r}
+summary(activities)
+```
+### 4.2 Strategy of replacing missing values
+For imputing missing values in the dataset there are all kinds of strategies. For this assignment we keep it simple so we use the mean value of each interval for replacing the NA-values. This value is calculated in chapter 1 and is 37.38. See the code in 4.1.
+
+
+### 4.3 Quick code to replace missing values with the mean
+```{r}
+activities$steps <- ifelse(is.na(activities$steps), mean(activities$steps, na.rm=TRUE), activities$steps)
+```
+
+### 4.4 Plot a histogram of the sum of the steps per day and calculate the sum, mean and median of the steps.
 
 ```{r}
-
-
-```
-
-
-## Imputing missing values
-Quick code to replace missing values with the mean
-```{r,results='hold'}
-activities$steps <- ifelse(is.na(activities$steps), mean(activities$steps, na.rm=TRUE), activities$steps)
-
+#create a new dataset
 activities4<-activities %>%
               select(date,steps) %>%
               group_by(date) %>%
               summarize(sumsteps=sum(steps))
-#calculate the sum, mean and median of the steps
+
+# plot a histogram of the sum of the steps
+ggplot( activities4 , aes(x=sumsteps)) + 
+  geom_histogram(binwidth = 2000,col="black",fill="blue")
+
+# display the sum, mean and median of the steps per day
 sum(activities4$sumsteps)
 mean(activities4$sumsteps)
 median(activities4$sumsteps)
-
-
-#plot a histogram of the sum of the steps per day
-ggplot( activities4 , aes(x=sumsteps)) + 
-  geom_histogram(binwidth = 2000,col="black",fill="blue")
 ```
 
-## Are there differences in activity patterns between weekdays and weekends?
+The total number of steps is increased and the impact on the median is just a litte.
+
+## 5. Are there differences in activity patterns between weekdays and weekends?
+By processing the data we added the variable daytype. So we can determine if the pattern of activity weekday vs. weekends.
+
+### 5.1 Create a new factor variable in the dataset with two levels – “weekday” and “weekend”
+The following code is adding a new variable daytype for categorize the rows in weekends and weekdays.
 ```{r}
+activities$daytype<-as.factor(ifelse(weekdays(activities$date) %in% c("zaterdag","zondag"), "weekend","weekday"))
+```
+
+### 5.2 Make a panel plot containing a time series plot
+We create a new dataset for calculating the mean per interval and daytype so we can make plots per daytype.
+```{r}
+#create the dataset
 activities5<-activities %>%
               select(interval,daytype,steps) %>%
               group_by(interval,daytype) %>%
               summarize(meansteps=mean(steps))
+
+# make line-plots per daytype
 ggplot( activities5, aes(x=interval,y=meansteps)) + 
   geom_point() + 
   geom_line() +
   facet_grid(daytype~.)
 ```
+
+The pattern for intervals of the weekdays and weekends are different. For the weekend in the lower intervals (left) the peaks are lower. In the higher intervals (right) the peaks are higher 
